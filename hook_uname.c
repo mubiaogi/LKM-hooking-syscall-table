@@ -15,7 +15,7 @@
 #define MODNAME "SYSCALL HACKING"
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Kazuki Igeta <igetakazuki@gmail.com>");
-MODULE_DESCRIPTION("Lerning Syscall Hooking")
+MODULE_DESCRIPTION("Lerning Syscall Hooking");
 
 // 32-bit machine addresses
 // sudo cat /boot/System.map-$(uname -r) | grep
