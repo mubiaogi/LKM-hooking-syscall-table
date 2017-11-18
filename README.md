@@ -1,10 +1,10 @@
 # hook-syscall
 LKM for learning syscall hooking.
 
-USAGE
+# USAGE
 1) Copy the addresses of sys_call_table and sys_newuname.
 ------
->sudo cat /boot/System.map-$(uname -r) | grep sys_call_table
+>sudo cat /boot/System.map-$(uname -r) | grep sys_call_table  
 >sudo cat /boot/System.map-$(uname -r) | grep sys_newuname
 ------
 
