@@ -18,7 +18,7 @@ MODULE_AUTHOR("Kazuki Igeta <igetakazuki@gmail.com>");
 MODULE_DESCRIPTION("Lerning Syscall Hooking");
 
 // 32-bit machine addresses
-// sudo cat /boot/System.map-$(uname -r) | grep
+// sudo cat /boot/System.map-$(uname -r) | grep sys_xxx
 unsigned long sys_call_table = 0xc1672140;
 unsigned long sys_newuname = 0xc106c280;
 
@@ -32,22 +32,29 @@ orig_uname_t orig_uname = NULL;
 
 asmlinkage long hooked_uname(struct new_utsname *name)
 {
+	//Call original sys_newuname()
 	orig_uname(name);
+	//Add arbitrary process
 	printk("%s: uname is hooked.\n", MODNAME);
 }
 
+
 int restore;
 
+//Constractor function
 int init_module(void)
 {
 	unsigned long * p = (unsigned long *) sys_call_table;
 	int i;
 	unsigned long cr0;
 
-	orig_uname = (orig_uname_t) sys_newuname;
 	printk("%s: init_module\n", MODNAME);
 
+	orig_uname = (orig_uname_t) sys_newuname;
+	
+	//Read the bits of cr0
 	cr0 = read_cr0();
+	//
 	write_cr0(cr0 & ~X86_CR0_WP);
 
 	for (i=0; i<256; i++){
@@ -65,6 +72,7 @@ int init_module(void)
 	return 0;
 }
 
+//Destructor function
 void cleanup_module(void)
 {
 	unsigned long * p = (unsigned long *) sys_call_table;
@@ -74,7 +82,8 @@ void cleanup_module(void)
 	write_cr0(cr0 & ~X86_CR0_WP);
 
 	p[restore] = sys_newuname;
-
+	
+	//Restore the original bits of cr0
 	write_cr0 (cr0);
 
 	printk("%s: cleanup_module\n", MODNAME);

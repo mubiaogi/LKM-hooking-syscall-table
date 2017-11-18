@@ -6,7 +6,7 @@ int main(int argc, char * argv[])
 	int sys_call_num, arg;
 
 	if(argc != 2) {
-		printf("%s: syscall-num\n", argv[0]);
+		printf("%s syscall-num\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
 
