@@ -11,6 +11,7 @@
 #include <linux/kallsyms.h>
 
 #include <linux/utsname.h>
+#include <linux/debugfs.h>
 
 #define MODNAME "SYSCALL HACKING"
 MODULE_LICENSE("GPL");
@@ -29,6 +30,9 @@ orig_uname_t orig_uname = NULL;
 //unsigned long sys_call_table = 0xffffffff00000000;
 //unsigned long sys_ni_syscall = 0xffffffff00000000;
 
+static struct dentry *testfile;
+static char testbuf[128];
+int restore;
 
 asmlinkage long hooked_uname(struct new_utsname *name)
 {
@@ -38,8 +42,17 @@ asmlinkage long hooked_uname(struct new_utsname *name)
 	printk("%s: uname is hooked.\n", MODNAME);
 }
 
+ssize_t kernelToUser_read(struct file *f, char __user *buf, size_t len, loff_t *ppos)
+{
+	snprintf(testbuf, sizeof(testbuf), "%d\n", restore);
+	return simple_read_from_buffer(buf, len, ppos, testbuf, strlen(testbuf));
+}
 
-int restore;
+static struct file_operations testfops = {
+	.owner = THIS_MODULE,
+	.read  = kernelToUser_read,
+};
+
 
 //Constractor function
 int init_module(void)
@@ -69,6 +82,11 @@ int init_module(void)
 
 	write_cr0 (cr0);
 
+	testfile = debugfs_create_file("testfile", 0400, NULL, NULL, &testfops);
+	if (testfile == NULL) {
+		return -ENOMEM;
+	}
+
 	return 0;
 }
 
@@ -85,6 +103,8 @@ void cleanup_module(void)
 	
 	//Restore the original bits of cr0
 	write_cr0 (cr0);
+
+	debugfs_remove(testfile);
 
 	printk("%s: cleanup_module\n", MODNAME);
 
