@@ -1,1 +1,0 @@
-cmd_/home/igeta/Documents/km/hook-syscall/hook_uname.ko := ld -r -m elf_i386 -T /usr/src/linux-headers-3.13.0-117-generic/scripts/module-common.lds --build-id  -o /home/igeta/Documents/km/hook-syscall/hook_uname.ko /home/igeta/Documents/km/hook-syscall/hook_uname.o /home/igeta/Documents/km/hook-syscall/hook_uname.mod.o

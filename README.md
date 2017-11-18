@@ -13,7 +13,11 @@ LKM for learning syscall hooking.
 >make
 ```
 4) Insert the LKM into Linux Kernel.
+```
 >sudo insmod hook_uname.ko
-
+```
 5) Test the LKM.
-
+```
+> uname -a
+> dmesg | tail -10
+```
