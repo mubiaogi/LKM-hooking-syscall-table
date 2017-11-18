@@ -13,7 +13,6 @@
 #include <linux/utsname.h>
 #include <linux/debugfs.h>
 
-#define MODNAME "SYSCALL HACKING"
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Kazuki Igeta <igetakazuki@gmail.com>");
 MODULE_DESCRIPTION("Lerning Syscall Hooking");
@@ -31,7 +30,11 @@ orig_uname_t orig_uname = NULL;
 //unsigned long sys_ni_syscall = 0xffffffff00000000;
 
 static struct dentry *testfile;
-static char testbuf[128];
+static struct dentry *hookdir;
+static char testbuf[11];
+
+static char option[] = "test";
+
 int restore;
 
 asmlinkage long hooked_uname(struct new_utsname *name)
@@ -39,18 +42,33 @@ asmlinkage long hooked_uname(struct new_utsname *name)
 	//Call original sys_newuname()
 	orig_uname(name);
 	//Add arbitrary process
-	printk("%s: uname is hooked.\n", MODNAME);
+	printk("%s: uname is hooked.\n", option);
 }
 
 ssize_t kernelToUser_read(struct file *f, char __user *buf, size_t len, loff_t *ppos)
 {
-	snprintf(testbuf, sizeof(testbuf), "%d\n", restore);
+	snprintf(testbuf, sizeof(testbuf), "%s\n", option);
 	return simple_read_from_buffer(buf, len, ppos, testbuf, strlen(testbuf));
+}
+
+ssize_t userToKernel_write(struct file *f, char __user *buf, size_t len, loff_t *ppos)
+{
+	ssize_t ret;
+
+	ret = simple_write_to_buffer(testbuf, sizeof(testbuf), ppos, buf, len);
+	if (ret < 0) {
+		return ret;
+	}
+
+	sscanf(testbuf, "%10s", option);
+
+	return ret;
 }
 
 static struct file_operations testfops = {
 	.owner = THIS_MODULE,
 	.read  = kernelToUser_read,
+	.write = userToKernel_write,
 };
 
 
@@ -61,18 +79,18 @@ int init_module(void)
 	int i;
 	unsigned long cr0;
 
-	printk("%s: init_module\n", MODNAME);
+	printk("%10s: init_module\n", option);
 
 	orig_uname = (orig_uname_t) sys_newuname;
 	
-	//Read the bits of cr0
+	// Read the bits of cr0
 	cr0 = read_cr0();
 	//
 	write_cr0(cr0 & ~X86_CR0_WP);
 
 	for (i=0; i<256; i++){
 		if (p[i] == sys_newuname) {
-			printk("%s: table entry %d keeps address %p\n",MODNAME,i,(void*)p[i]);
+			printk("%s: table entry %d keeps address %p\n", option, i, (void*) p[i]);
 			restore = i;
 			break;
 		}
@@ -82,7 +100,13 @@ int init_module(void)
 
 	write_cr0 (cr0);
 
-	testfile = debugfs_create_file("testfile", 0400, NULL, NULL, &testfops);
+	// mkdir /sys/kernel/debug/hookdir
+	hookdir = debugfs_create_dir("hookdir", NULL);
+	if (hookdir == NULL) {
+		return -ENOMEM;
+	}
+	// Create file to transfer between this LKM and Userland
+	testfile = debugfs_create_file("testfile", 0400, hookdir, NULL, &testfops);
 	if (testfile == NULL) {
 		return -ENOMEM;
 	}
@@ -90,7 +114,7 @@ int init_module(void)
 	return 0;
 }
 
-//Destructor function
+// Destructor function
 void cleanup_module(void)
 {
 	unsigned long * p = (unsigned long *) sys_call_table;
@@ -104,9 +128,9 @@ void cleanup_module(void)
 	//Restore the original bits of cr0
 	write_cr0 (cr0);
 
-	debugfs_remove(testfile);
+	debugfs_remove_recursive(hookdir);
 
-	printk("%s: cleanup_module\n", MODNAME);
+	printk("%10s: cleanup_module\n", option);
 
 	return;
 }
