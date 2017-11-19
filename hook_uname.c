@@ -30,20 +30,15 @@ orig_uname_t orig_uname = NULL;
 //unsigned long sys_ni_syscall = 0xffffffff00000000;
 
 static struct dentry *testfile;
+static struct dentry *sysnamefile;
 static struct dentry *hookdir;
 static char testbuf[11];
+static char sysnamebuf[] = "Windows";
 
 static char option[] = "test";
+static struct new_utsname tmp;
 
 int restore;
-
-asmlinkage long hooked_uname(struct new_utsname *name)
-{
-	//Call original sys_newuname()
-	orig_uname(name);
-	//Add arbitrary process
-	printk("%s: uname is hooked.\n", option);
-}
 
 ssize_t kernelToUser_read(struct file *f, char __user *buf, size_t len, loff_t *ppos)
 {
@@ -65,12 +60,45 @@ ssize_t userToKernel_write(struct file *f, char __user *buf, size_t len, loff_t 
 	return ret;
 }
 
+ssize_t sysname_read(struct file *f, char __user *buf, size_t len, loff_t *ppos)
+{
+	return simple_read_from_buffer(buf, len, ppos, tmp.sysname, strlen(tmp.sysname));
+}
+
+ssize_t sysname_write(struct file *f, char __user *buf, size_t len, loff_t *ppos)
+{
+	ssize_t ret;
+
+	ret = simple_write_to_buffer(tmp.sysname, sizeof(tmp.sysname), ppos, buf, len);
+	if (ret < 0) {
+		return ret;
+	}
+
+	return ret;
+}
+
 static struct file_operations testfops = {
 	.owner = THIS_MODULE,
 	.read  = kernelToUser_read,
 	.write = userToKernel_write,
 };
 
+static struct file_operations sysnamefops = {
+	.owner = THIS_MODULE,
+	.read  = sysname_read,
+	.write = sysname_write,
+};
+
+
+asmlinkage long hooked_uname(struct new_utsname *name)
+{
+	// Call original sys_newuname()
+	orig_uname(name);
+	strncpy(tmp.sysname, sysnamebuf, strlen(sysnamebuf));
+	strncpy(name->sysname, tmp.sysname , strlen(tmp.sysname));
+	// Add arbitrary process
+	printk("%s: uname is hooked.\n", option);
+}
 
 //Constractor function
 int init_module(void)
@@ -108,6 +136,11 @@ int init_module(void)
 	// Create file to transfer between this LKM and Userland
 	testfile = debugfs_create_file("testfile", 0400, hookdir, NULL, &testfops);
 	if (testfile == NULL) {
+		return -ENOMEM;
+	}
+
+	sysnamefile = debugfs_create_file("sysnamefile", 0400, hookdir, NULL, &sysnamefops);
+	if (sysnamefile == NULL) {
 		return -ENOMEM;
 	}
 
